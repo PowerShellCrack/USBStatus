@@ -204,7 +204,7 @@ do{
                 Stop-Computer -computerName $env:COMPUTERNAME -Force
             } Else{
                 Write-Log ((get-date -format s) +"     USB Key removal event detected, sending message...") -writehost
-                $result = Show-PopUp -Message “USB Key ($driveLetter) was removed`n`nSystem shutdown will be triggered in 30 seconds, Continue?” -Title ” USB Key removal” -TimeOut 30 -ButtonSet "OC" -IconType "Exclamation"
+                $result = Show-PopUp -Message Â“USB Key ($driveLetter) was removed`n`nSystem shutdown will be triggered in 30 seconds, Continue?Â” -Title Â” USB Key removalÂ” -TimeOut 30 -ButtonSet "OC" -IconType "Exclamation"
                 If ($result -eq 1){ # Accepted
                     Write-Log ((get-date -format s) +"     User accepted, Shutting down system...") -writehost
                     Stop-Computer -computerName $env:COMPUTERNAME -force
