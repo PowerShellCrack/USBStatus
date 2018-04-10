@@ -1,18 +1,26 @@
 <#
 .SYNOPSIS
-
+	Monitor when USB is inserted and removed.
 .DESCRIPTION
-
+	The script ran in task sechduler on system startup. It monitors a USB letter and Name
+	If USB removal event is triggered it will shut down the system. 
 .NOTES
+	All events are logged
 .LINK 
-	
+	https://github.com/PowerShellCrack/USBStatus/edit/master/Detect-USBStatus.ps1
 #>
 ##*===============================================
 ##* VARIABLE DECLARATION
 ##*===============================================
+[string]$TaskName = "Monitor USB Boot Key - System Startup"
+[string]$USBLetter = "I:"
+[string]$USBName = "BOOTKEY"
+##*===============================================
+##* Do not modify section below
 $t = '[DllImport("user32.dll")] public static extern bool ShowWindow(int handle, int state);'
 add-type -name win -member $t -namespace native
 [native.win]::ShowWindow(([System.Diagnostics.Process]::GetCurrentProcess() | Get-Process).MainWindowHandle, 0)
+
 ## Variables: Permissions/Accounts
 [Security.Principal.WindowsIdentity]$CurrentProcessToken = [Security.Principal.WindowsIdentity]::GetCurrent()
 [Security.Principal.SecurityIdentifier]$CurrentProcessSID = $CurrentProcessToken.User
@@ -25,12 +33,16 @@ add-type -name win -member $t -namespace native
 [boolean]$IsServiceAccount = [boolean]($CurrentProcessToken.Groups -contains [Security.Principal.SecurityIdentifier]'S-1-5-6')
 [boolean]$IsProcessUserInteractive = [Environment]::UserInteractive
 [string]$LocalSystemNTAccount = (New-Object -TypeName 'System.Security.Principal.SecurityIdentifier' -ArgumentList ([Security.Principal.WellKnownSidType]::'LocalSystemSid', $null)).Translate([Security.Principal.NTAccount]).Value
+
 #  Check if script is running in session zero
 If ($IsLocalSystemAccount -or $IsLocalServiceAccount -or $IsNetworkServiceAccount -or $IsServiceAccount) { $SessionZero = $true } Else { $SessionZero = $false }
 
-
-[string]$ScriptName = "Monitor USB Boot Key"
-[string]$ScriptVersion= "1.0"
+##*===============================================
+##* PATH VARIABLE DECLARATION
+##*===============================================
+## Variables: Script Name and Script Paths
+[string]$scriptPath = $MyInvocation.MyCommand.Definition
+[string]$scriptDirectory = Split-Path -Path $scriptPath -Parent
 
 $RunningDate = Get-Date -Format MMddyyyy
 If ($SessionZero) {
@@ -38,7 +50,7 @@ If ($SessionZero) {
 } Else {
     $FinalLogFileName = ($ScriptName.Trim(" ") + "(" + $env:USERNAME + ")-" + $RunningDate)
 }
-[string]$Logfile = "E:\Data\Processors\Logs\$FinalLogFileName.log"
+[string]$Logfile = "$scriptDirectory\Logs\$FinalLogFileName.log"
 
 ##*===============================================
 ##* FUNCTIONS
@@ -166,9 +178,9 @@ Function Get-ScheduledTasks{
 ##*===============================================
 ##* MAIN
 ##*===============================================
-$RunningTasks = Get-ScheduledTask -TaskName 'Monitor USB Boot Key - System Startup'
+$RunningTasks = Get-ScheduledTask -TaskName $TaskName
 If (!$SessionZero -and $RunningTasks.State -eq "Running"){
-    Stop-ScheduledTask -TaskName 'Monitor USB Boot Key - System Startup'
+    Stop-ScheduledTask -TaskName $TaskName
     taskkill /IM powershell.exe /FI "USERNAME eq SYSTEM"
 }
 Unregister-Event -SourceIdentifier volumeChange -ErrorAction SilentlyContinue
@@ -193,26 +205,30 @@ do{
         Write-Log ((get-date -format s) +"     Drive name = "+ $driveLetter) -writehost
         Write-Log ((get-date -format s) +"     Drive label = "+ $driveLabel) -writehost
         # Execute process if drive matches specified condition(s)
-        if ($driveLetter -eq 'I:' -and $driveLabel -eq 'BOOTKEY'){
+        if ( ($driveLetter -eq $USBLetter) -and ($driveLabel -eq $USBName) ){
             Write-Log ((get-date -format s) +"     Starting task in 3 seconds...") -writehost
             #Stop-Computer -computerName  $env:COMPUTERNAME -force
             #start-process "Z:\sync.bat"
         }
-    } ElseIf ($eventType -eq 3){
+    } 
+    ElseIf ($eventType -eq 3){
         $driveLetter = $newEvent.SourceEventArgs.NewEvent.DriveName
-        if ($driveLetter -eq 'I:'){
+        if ($driveLetter -eq $USBLetter){
             If ($SessionZero) {
                 Write-Log ((get-date -format s) +"     USB Key removal event detected, rebooting system...") -writehost
                 Stop-Computer -computerName $env:COMPUTERNAME -Force
             } Else{
                 Write-Log ((get-date -format s) +"     USB Key removal event detected, sending message...") -writehost
                 $result = Show-PopUp -Message USB Key ($driveLetter) was removed`n`nSystem shutdown will be triggered in 30 seconds, Continue? -Title  USB Key removal -TimeOut 30 -ButtonSet "OC" -IconType "Exclamation"
-                If ($result -eq 1){ # Accepted
+                
+		If ($result -eq 1){ # Accepted
                     Write-Log ((get-date -format s) +"     User accepted, Shutting down system...") -writehost
                     Stop-Computer -computerName $env:COMPUTERNAME -force
-                } ElseIf($result -eq 2){ # Cancelled
+                } 
+		ElseIf($result -eq 2){ # Cancelled
                     Write-Log ((get-date -format s) +"     User cancelled system shutdown...") -writehost
-                } Else { #Let message continue
+                } 
+		Else { #Let message continue
                     Write-Log ((get-date -format s) +"     Countdown ended, Shutting down system...") -writehost
                     Stop-Computer -computerName $env:COMPUTERNAME -force
                 } 
@@ -220,5 +236,6 @@ do{
         }
     }
     Remove-Event -SourceIdentifier volumeChange
-} while (1 -eq 1) #Loop until next event
+} 
+while (1 -eq 1) #Loop until next event
 Unregister-Event -SourceIdentifier volumeChange
