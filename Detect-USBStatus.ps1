@@ -54,6 +54,8 @@ Function Write-Log{
         Write-Host $logstring
     }
 }
+
+#https://powershell.org/2013/04/29/powershell-popup/
 Function Show-PopUp{ 
 <# 
         .SYNOPSIS 
